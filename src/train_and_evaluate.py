@@ -1,16 +1,10 @@
-import os
-import numpy as np
 import math
-import tensorflow as tf
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from .data_processing import load_data, preprocess_data
 from .model import create_lstm_model
 
-
 def train_and_evaluate(
-    symbol="AAPL",
-    start_date="2000-01-01",
     lookback=30,
     epochs=10,
     batch_size=32,
@@ -19,8 +13,8 @@ def train_and_evaluate(
     test_split=0.15,
 ):
     # 1. Load and preprocess data (returns)
-    df = load_data(symbol, start_date)
-    X, y, scaler = preprocess_data(df, lookback=lookback)
+    df = load_data()
+    X, y, X_scaler, y_scaler = preprocess_data(df, lookback=lookback)
 
     # 2. Split data
     total_samples = len(X)
@@ -48,9 +42,13 @@ def train_and_evaluate(
     # 4. Predictions and metrics on Test Set
     y_pred_test = model.predict(X_test)
 
-    # Inverse-transform the scaled returns
-    y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
-    y_pred_test_inv = scaler.inverse_transform(y_pred_test).flatten()
+    # Correct inverse transform using y_scaler
+    y_test_inv = y_scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+    y_pred_test_inv = y_scaler.inverse_transform(y_pred_test).flatten()
+
+    # Check for bias in predictions
+    print(f"Mean of Actual Returns: {y_test_inv.mean():.6f}")
+    print(f"Mean of Predicted Returns: {y_pred_test_inv.mean():.6f}")
 
     # Compute metrics (in return space)
     test_mse = mean_squared_error(y_test_inv, y_pred_test_inv)
@@ -73,7 +71,6 @@ def train_and_evaluate(
 
     return {"mse": test_mse, "rmse": test_rmse, "mae": test_mae}
 
-
 # Example usage
 if __name__ == "__main__":
-    train_and_evaluate("AAPL", start_date="2015-01-01")
+    train_and_evaluate()
