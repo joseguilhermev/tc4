@@ -12,8 +12,6 @@ Este repositório contém um conjunto de scripts em Python, arquivos de configur
 4. [Instalação](#instalação)
 5. [Uso](#uso)
 6. [Execução com Docker](#execução-com-docker)
-7. [Contribuindo](#contribuindo)
-8. [Licença](#licença)
 
 ---
 
