@@ -8,10 +8,8 @@ Este repositório contém um conjunto de scripts em Python, arquivos de configur
 
 1. [Visão Geral](#visão-geral)
 2. [Estrutura de Pastas](#estrutura-de-pastas)
-3. [Pré-Requisitos](#pré-requisitos)
-4. [Instalação](#instalação)
-5. [Uso](#uso)
-6. [Execução com Docker](#execução-com-docker)
+3. [Uso](#uso)
+4. [Execução com Docker](#execução-com-docker)
 
 ---
 
@@ -45,31 +43,6 @@ O objetivo deste projeto é demonstrar como carregar dados, realizar pré-proces
 └── requirements.txt            # Dependências Python
 ```
 
----
-
-## Pré-Requisitos
-
-- **Python 3.8+** instalado.
-- Gerenciador de pacotes **pip** ou similar (pipenv, poetry, etc.).
-- (Opcional) **Docker** e **Docker Compose**, caso deseje executar em contêiner.
-
----
-
-## Instalação
-
-1. **Clonar o repositório**  
-   ```bash
-   git clone https://github.com/usuario/projeto.git
-   cd projeto
-   ```
-
-2. **Instalar dependências**  
-   ```bash
-   pip install -r requirements.txt
-   ```
-   Isso instalará todos os pacotes Python necessários, como pandas, numpy, etc.
-
----
 
 ## Uso
 
