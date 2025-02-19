@@ -1,52 +1,42 @@
-import os
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 from pydantic import BaseModel
+import pandas as pd
 
-# Imports das suas funções
-from src.train_and_evaluate import train_and_evaluate
-from src.train import train_model
-from src.inference import predict_return
-from src.data_processing import load_data
-
-app = FastAPI()
+# Importes do seu código
+from src.inference import load_trained_model, make_inference
+from src.data_processing import load_and_preprocess_data
 
 
-class SymbolRequest(BaseModel):
-    symbol: str
+# Modelo para descrever o request body
+class PredictRequest(BaseModel):
+    recent_data: list[list[float]]
+
+
+app = FastAPI(title="LSTM Inference API")
+
+# Carrega modelo e scaler
+model = load_trained_model("models/lstm_model.keras")
+_, _, scaler = load_and_preprocess_data(
+    csv_path="data/AAPL/AAPL.csv",
+    feature_columns=["Open", "High", "Low", "Close", "Volume"],
+    target_column="Close",
+    window_size=20,
+)
 
 
 @app.post("/predict")
-def predict_endpoint(req: SymbolRequest):
+def predict_next_close_price(data: PredictRequest):
     """
-    Endpoint único que:
-    1) Recebe um símbolo de ação.
-    2) Verifica se existe modelo salvo em models/<symbol>.
-    3) Se existir, apenas faz a inferência.
-    4) Se não existir, treina e depois faz a inferência.
-    5) Retorna ao usuário o valor de fechamento atual multiplicado pelo retorno previsto.
+    Recebe um JSON com o campo "recent_data", que é lista de listas
+    (20 linhas, 5 colunas), e retorna a previsão do próximo Close.
     """
-
-    symbol = req.symbol.upper()
-    model_dir = f"models/{symbol}"
-    model_path = f"{model_dir}/model.h5"
-
-    if os.path.exists(model_path):
-        # Só inferência
-        predicted_return = predict_return(symbol)
-    else:
-        # Treina e depois infere
-        train_model(symbol)  # ou train_and_evaluate(symbol), se preferir
-        predicted_return = predict_return(symbol)
-
-    # Agora, pega o último preço de fechamento real para multiplicar
-    df = load_data(symbol)
-    current_close = df["Close"].iloc[-1]  # Último valor de fechamento
-
-    predicted_close_price = current_close * (1 + predicted_return)
-
-    return {
-        "symbol": symbol,
-        "current_close": current_close,
-        "predicted_return": predicted_return,
-        "predicted_close_price": predicted_close_price,
-    }
+    # Acesso via data.recent_data
+    prediction = make_inference(
+        model=model,
+        scaler=scaler,
+        recent_data=data.recent_data,
+        window_size=20,
+        feature_columns=["Open", "High", "Low", "Close", "Volume"],
+        target_column="Close",
+    )
+    return {"Predicted next Close price": prediction}

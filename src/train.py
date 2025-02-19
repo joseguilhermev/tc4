@@ -1,28 +1,86 @@
+# src/train.py
+
 import os
-from .data_processing import load_data, preprocess_data
-from .model import create_lstm_model
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    mean_absolute_error,
+    root_mean_squared_error,
+    mean_absolute_percentage_error,
+)
+
+from src.data_processing import load_and_preprocess_data
+from src.model import build_lstm_model
+
 import tensorflow as tf
 
 
 def train_model(
-    symbol: str,
-    start_date: str = "2000-01-01",
-    lookback: int = 10,
-    epochs: int = 5,
-    batch_size: int = 32,
+    csv_path="data/AAPL/AAPL.csv",
+    model_save_path="models/lstm_model.keras",
+    feature_columns=None,
+    target_column="Close",
+    window_size=20,
+    test_size=0.2,
+    lstm_units=64,
+    dropout_rate=0.2,
+    loss="mean_squared_error",
+    optimizer="adam",
+    epochs=10,
+    batch_size=32,
+    verbose=1,
 ):
-    """
-    Realiza apenas o treinamento (sem avaliação) e salva o modelo em models/<symbol>.
-    """
-    df = load_data(symbol, start_date)
-    X, y, scaler = preprocess_data(df, lookback)
+    # 1. Carrega e pré-processa os dados
+    X, y, scaler = load_and_preprocess_data(
+        csv_path, feature_columns, target_column, window_size
+    )
 
-    # Exemplo: usar todo X e y para treino
-    model = create_lstm_model(input_shape=(X.shape[1], X.shape[2]))
-    model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=1)
+    # 2. Divide em treino/validação
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=test_size, shuffle=False
+    )
 
-    model_dir = f"models/{symbol}"
-    os.makedirs(model_dir, exist_ok=True)
-    model.save(f"{model_dir}/model.keras")
+    # 3. Constrói o modelo
+    model = build_lstm_model(
+        input_shape=(X_train.shape[1], X_train.shape[2]),
+        lstm_units=lstm_units,
+        dropout_rate=dropout_rate,
+        loss=loss,
+        optimizer=optimizer,
+    )
 
-    print("Modelo treinado e salvo com sucesso em", model_dir)
+    # 4. Treina o modelo
+    history = model.fit(
+        X_train,
+        y_train,
+        validation_data=(X_val, y_val),
+        epochs=epochs,
+        batch_size=batch_size,
+        verbose=verbose,
+    )
+
+    # 5. Avalia o modelo
+    predictions_val = model.predict(X_val)
+    mae = mean_absolute_error(y_val, predictions_val)
+    rmse = root_mean_squared_error(y_val, predictions_val)
+    mape = mean_absolute_percentage_error(y_val, predictions_val)
+    print(f"Validation MAPE: {mape:.4f}")
+    print(f"Validation MAE: {mae:.4f}")
+    print(f"Validation RMSE: {rmse:.4f}")
+
+    # 6. Salva o modelo
+    os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
+    model.save(model_save_path)
+    print(f"Modelo salvo em: {model_save_path}")
+
+    return model, scaler, history
+
+
+if __name__ == "__main__":
+    train_model(
+        csv_path="data/AAPL/AAPL.csv",
+        model_save_path="models/lstm_model.keras",
+        epochs=100,
+        batch_size=32,
+        verbose=1,
+    )

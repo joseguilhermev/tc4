@@ -1,40 +1,43 @@
-import os
-import numpy as np
+# src/inference.py
 import pandas as pd
+import numpy as np
 from tensorflow.keras.models import load_model
-from .data_processing import load_data, preprocess_data
 
 
-def predict_return(symbol: str, lookback: int = 30):
-    """
-    Carrega o modelo salvo e faz predição do próximo retorno
-    com base na última sequência de dados.
-    """
-    model_path = f"models/{symbol}/model.keras"
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Modelo não encontrado em {model_path}")
-
-    # Carrega modelo
+def load_trained_model(model_path="models/lstm_model.keras"):
     model = load_model(model_path)
-
-    # Carrega dados e reprocessa
-    df = load_data(symbol)
-    X, _, _ = preprocess_data(df, lookback)
-
-    # Pega a última sequência
-    last_sequence = X[-1]  # shape (lookback, 1)
-    last_sequence = np.expand_dims(last_sequence, axis=0)  # (1, lookback, 1)
-
-    predicted_return = model.predict(last_sequence)
-    # predicted_return é um array 2D, ex: [[0.015]] -> pegamos o valor
-    predicted_return_value = predicted_return[0, 0]
-
-    # Se quiser reverter o scaling (caso tenha sido salvo):
-    # from joblib import load
-    # scaler = load(f"models/{symbol}/scaler.joblib")
-    # predicted_return_value = scaler.inverse_transform([[predicted_return_value]])[0][0]
-
-    return predicted_return_value
+    return model
 
 
-print(predict_return("AAPL"))  # Exemplo de uso
+def make_inference(
+    model,
+    scaler,
+    recent_data,
+    window_size=20,
+    feature_columns=None,
+    target_column="Close",
+):
+    if feature_columns is None:
+        feature_columns = ["Open", "High", "Low", "Close", "Volume"]
+
+    # Converte a lista de listas em DataFrame
+    df_recent = pd.DataFrame(recent_data, columns=feature_columns)
+
+    # Normalização
+    scaled_recent = scaler.transform(df_recent[feature_columns].values)
+
+    x_input = scaled_recent[-window_size:]
+    x_input = np.expand_dims(x_input, axis=0)
+
+    predicted_scaled = model.predict(x_input)
+
+    target_index = feature_columns.index(target_column)
+
+    # Reconstruindo dummy para inverter normalização somente na posição do alvo
+    dummy = np.zeros((1, len(feature_columns)))
+    dummy[0, target_index] = predicted_scaled[0, 0]
+
+    inv_scale = scaler.inverse_transform(dummy)
+    prediction = inv_scale[0, target_index]
+
+    return float(prediction)

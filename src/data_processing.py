@@ -1,62 +1,63 @@
-import yfinance as yf
+# src/data_processing.py
+
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
-def load_data():
+
+def load_and_preprocess_data(
+    csv_path: str, feature_columns=None, target_column="Close", window_size=60
+):
     """
-    Carrega o histórico completo da ação desde a data de início fornecida
-    (idealmente, o IPO). Retorna um DataFrame do pandas com os retornos diários.
+    Carrega os dados de um arquivo CSV, realiza limpeza básica,
+    normalização e cria janelas temporais (X, y) para treinamento.
+
+    Parâmetros:
+    -----------
+    csv_path : str
+        Caminho para o arquivo CSV (ex: data/AAPL/AAPL.csv).
+    feature_columns : list
+        Lista com o nome das colunas que serão utilizadas como features.
+        Se None, serão utilizadas ['Open', 'High', 'Low', 'Close', 'Volume'] por padrão.
+    target_column : str
+        Nome da coluna que será predita (por padrão, 'Close').
+    window_size : int
+        Tamanho da janela temporal para a LSTM (ex.: 60 dias).
+
+    Retorna:
+    --------
+    X : np.ndarray
+        Dados de entrada no formato (amostras, window_size, num_features).
+    y : np.ndarray
+        Valores de saída correspondentes.
+    scaler : MinMaxScaler
+        Scaler treinado nos dados (para poder reverter a normalização depois, se necessário).
     """
-    # Se você preferir usar yfinance para baixar os dados, descomente:
-    # df = yf.download(symbol, start=start_date, auto_adjust=True)
-    # df.dropna(inplace=True)
-    # return df
+    if feature_columns is None:
+        feature_columns = ["Open", "High", "Low", "Close", "Volume"]
 
-    # Lê os dados do CSV
-    df = pd.read_csv(r"C:\Users\joseg\tc4\data\AAPL\AAPL.csv")
-    
-    # Converte a coluna 'Date' para o tipo datetime e ordena os dados por data
-    df["Date"] = pd.to_datetime(df["Date"])
-    df.sort_values("Date", inplace=True)
-    
-    # Calcula o retorno diário usando o preço ajustado ('Adj Close')
-    # O retorno diário é calculado como (Preço de hoje / Preço de ontem) - 1
-    df["Return"] = df["Adj Close"].pct_change().fillna(0)  # Fill NaNs to avoid issues
+    # 1. Carregar dados
+    df = pd.read_csv(csv_path, parse_dates=True, infer_datetime_format=True)
 
-    # Opcional: Calcula o retorno acumulado
-    # df["Cumulative Return"] = (1 + df["Return"]).cumprod() - 1
-
-    # Remove a primeira linha, pois o retorno será NaN
+    # 2. Limpeza básica (ex.: remover NA)
     df.dropna(inplace=True)
-    
-    return df
 
+    # 3. Selecionar colunas de interesse
+    df_features = df[feature_columns].copy()
 
-def preprocess_data(df, lookback=30):
-    """
-    Processes data: normalizes, creates lookback sequences.
-    Returns X, y, and two scalers (one for X, one for y).
-    """
-    # Assuming 'returns' column in df
-    data = df["Return"].values.reshape(-1, 1)
+    # 4. Normalizar dados
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(df_features)
 
-    # Separate scalers for X and y
-    X_scaler = StandardScaler()
-    y_scaler = StandardScaler()
-
-    # Fit scaler only on training portion (to avoid data leakage)
-    train_size = int(0.7 * len(data))
-    X_scaler.fit(data[:train_size])  # Fit on training set only
-    y_scaler.fit(data[:train_size])  # Fit on training set only
-
-    # Normalize entire dataset using fitted scalers
-    data_scaled = X_scaler.transform(data)
-
-    # Create lookback sequences
+    # 5. Criar janelas temporais
     X, y = [], []
-    for i in range(len(data_scaled) - lookback):
-        X.append(data_scaled[i : i + lookback])
-        y.append(data_scaled[i + lookback])
+    for i in range(window_size, len(scaled_data)):
+        X.append(scaled_data[i - window_size : i])
+        # vamos assumir que target_column é parte de feature_columns
+        # e queremos prever a próxima posição dessa coluna
+        target_index = feature_columns.index(target_column)
+        y.append(scaled_data[i, target_index])
 
-    return np.array(X), np.array(y), X_scaler, y_scaler
+    X, y = np.array(X), np.array(y)
+
+    return X, y, scaler
